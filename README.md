@@ -5,7 +5,7 @@
 ****Current Capabilities:** rendering obj models through triangle mesh algorithms.
 
 **My objective:** to build a 3D graphics engine with color and texturing capabilities and develop my programming
-skillins in C++ along the way. I hope to be able to use this project in the future to build 3D games.
+skill in C++ along the way. I hope to be able to use this project in the future to build 3D games.
 
 ## Update #1:
 **Wireframe Mountains Demo:**
