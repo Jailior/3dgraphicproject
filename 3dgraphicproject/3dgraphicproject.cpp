@@ -1,7 +1,21 @@
-#include "olcConsoleGameEngine.h"
+/*
+* 
+* 3D Graphics Engine
+* 
+* Author: Ali Osman
+* 
+* Last Updated: 09/10/2024
+*/
+
+
+#define OLC_PGE_APPLICATION
+#include "olcPixelGameEngine.h"
+
 #include <fstream>
 #include <strstream>
 #include <algorithm>
+#include <string>
+
 using namespace std;
 
 struct vec2d
@@ -24,8 +38,7 @@ struct triangle // a triangle, to be drawn, made up of 3 vertices each of which 
 {
 	vec3d p[3];
 	vec2d t[3]; // texture
-	wchar_t sym;
-	short col;
+	olc::Pixel col;
 };
 
 struct mesh // a grouping of triangles
@@ -60,6 +73,8 @@ struct mesh // a grouping of triangles
 				{
 					vec2d v;
 					s >> junk >> junk >> v.u >> v.v;
+					v.u = 1.0f - v.u;
+					v.v = 1.0f - v.v;
 					texs.push_back(v);
 				}
 				else
@@ -91,10 +106,12 @@ struct mesh // a grouping of triangles
 					while (!s.eof())
 					{
 						char c = s.get();
-						if (c == ' ' || c == '/')
+						if (c == ' ' || c == '/') {
 							nTokenCount++;
-						else
+						}
+						else {
 							tokens[nTokenCount].append(1, c);
+						}
 					}
 
 					tokens[nTokenCount].pop_back();
@@ -110,7 +127,6 @@ struct mesh // a grouping of triangles
 
 		return true;
 	}
-
 };
 
 struct mat4x4
@@ -118,12 +134,12 @@ struct mat4x4
 	float m[4][4] = { 0 };
 };
 
-class olcEngine3D : public olcConsoleGameEngine
+class olcEngine3D : public olc::PixelGameEngine
 {
 public:
 	olcEngine3D()
 	{
-		m_sAppName = L"3D Graphics Engine"; // app name
+		sAppName = "3D Graphics Engine"; // app name
 	}
 
 private:
@@ -137,7 +153,7 @@ private:
 
 	float fTheta;
 
-	olcSprite* sprTex1;
+	olc::Sprite *sprTex1;
 
 	vec3d Matrix_MultiplyVector(mat4x4 &m, vec3d &i)
 	{
@@ -334,6 +350,7 @@ private:
 
 	int Triangle_ClipAgainstPlane(vec3d plane_p, vec3d plane_n, triangle& in_tri, triangle& out_tri1, triangle& out_tri2)
 	{
+		// Make sure plane normal is indeed normal
 		plane_n = Vector_Normalize(plane_n);
 
 		// Return signed shortest distance from point to plane, plane normal must be normalised
@@ -356,32 +373,26 @@ private:
 		float d1 = dist(in_tri.p[1]);
 		float d2 = dist(in_tri.p[2]);
 
-		if (d0 >= 0) { 
-			inside_points[nInsidePointCount++] = &in_tri.p[0]; 
-			inside_tex[nInsideTexCount++] = &in_tri.t[0]; 
+		if (d0 >= 0) { inside_points[nInsidePointCount++] = &in_tri.p[0]; inside_tex[nInsideTexCount++] = &in_tri.t[0]; }
+		else {
+			outside_points[nOutsidePointCount++] = &in_tri.p[0]; outside_tex[nOutsideTexCount++] = &in_tri.t[0];
 		}
-		else { 
-			outside_points[nOutsidePointCount++] = &in_tri.p[0]; 
-			outside_tex[nOutsideTexCount++] = &in_tri.t[0];
+		if (d1 >= 0) {
+			inside_points[nInsidePointCount++] = &in_tri.p[1]; inside_tex[nInsideTexCount++] = &in_tri.t[1];
+		}
+		else {
+			outside_points[nOutsidePointCount++] = &in_tri.p[1];  outside_tex[nOutsideTexCount++] = &in_tri.t[1];
+		}
+		if (d2 >= 0) {
+			inside_points[nInsidePointCount++] = &in_tri.p[2]; inside_tex[nInsideTexCount++] = &in_tri.t[2];
+		}
+		else {
+			outside_points[nOutsidePointCount++] = &in_tri.p[2];  outside_tex[nOutsideTexCount++] = &in_tri.t[2];
 		}
 
-		if (d1 >= 0) { 
-			inside_points[nInsidePointCount++] = &in_tri.p[1]; 
-			inside_tex[nInsideTexCount++] = &in_tri.t[1];
-		}
-		else { 
-			outside_points[nOutsidePointCount++] = &in_tri.p[1]; 
-			outside_tex[nOutsideTexCount++] = &in_tri.t[1];
-		}
-
-		if (d2 >= 0) { 
-			inside_points[nInsidePointCount++] = &in_tri.p[2]; 
-			inside_tex[nInsideTexCount++] = &in_tri.t[2];
-		}
-		else { 
-			outside_points[nOutsidePointCount++] = &in_tri.p[2]; 
-			outside_tex[nOutsideTexCount++] = &in_tri.t[2];
-		}
+		// Now classify triangle points, and break the input triangle into 
+		// smaller output triangles if required. There are four possible
+		// outcomes...
 
 		if (nInsidePointCount == 0)
 		{
@@ -407,7 +418,6 @@ private:
 
 			// Copy appearance info to new triangle
 			out_tri1.col = in_tri.col;
-			out_tri1.sym = in_tri.sym;
 
 			// The inside point is valid, so keep that...
 			out_tri1.p[0] = *inside_points[0];
@@ -419,11 +429,12 @@ private:
 			out_tri1.p[1] = Vector_IntersectPlane(plane_p, plane_n, *inside_points[0], *outside_points[0], t);
 			out_tri1.t[1].u = t * (outside_tex[0]->u - inside_tex[0]->u) + inside_tex[0]->u;
 			out_tri1.t[1].v = t * (outside_tex[0]->v - inside_tex[0]->v) + inside_tex[0]->v;
-			
-			
+			out_tri1.t[1].w = t * (outside_tex[0]->w - inside_tex[0]->w) + inside_tex[0]->w;
+
 			out_tri1.p[2] = Vector_IntersectPlane(plane_p, plane_n, *inside_points[0], *outside_points[1], t);
-			out_tri1.t[2].u = t * (outside_tex[0]->u - inside_tex[0]->u) + inside_tex[0]->u;
-			out_tri1.t[2].v = t * (outside_tex[0]->v - inside_tex[0]->v) + inside_tex[0]->v;
+			out_tri1.t[2].u = t * (outside_tex[1]->u - inside_tex[0]->u) + inside_tex[0]->u;
+			out_tri1.t[2].v = t * (outside_tex[1]->v - inside_tex[0]->v) + inside_tex[0]->v;
+			out_tri1.t[2].w = t * (outside_tex[1]->w - inside_tex[0]->w) + inside_tex[0]->w;
 
 			return 1; // Return the newly formed single triangle
 		}
@@ -436,10 +447,8 @@ private:
 
 			// Copy appearance info to new triangles
 			out_tri1.col = in_tri.col;
-			out_tri1.sym = in_tri.sym;
 
 			out_tri2.col = in_tri.col;
-			out_tri2.sym = in_tri.sym;
 
 			// The first triangle consists of the two inside points and a new
 			// point determined by the location where one side of the triangle
@@ -453,69 +462,74 @@ private:
 			out_tri1.p[2] = Vector_IntersectPlane(plane_p, plane_n, *inside_points[0], *outside_points[0], t);
 			out_tri1.t[2].u = t * (outside_tex[0]->u - inside_tex[0]->u) + inside_tex[0]->u;
 			out_tri1.t[2].v = t * (outside_tex[0]->v - inside_tex[0]->v) + inside_tex[0]->v;
+			out_tri1.t[2].w = t * (outside_tex[0]->w - inside_tex[0]->w) + inside_tex[0]->w;
 
 			// The second triangle is composed of one of he inside points, a
 			// new point determined by the intersection of the other side of the 
 			// triangle and the plane, and the newly created point above
 			out_tri2.p[0] = *inside_points[1];
-			out_tri2.p[1] = out_tri1.p[2];
-
 			out_tri2.t[0] = *inside_tex[1];
+			out_tri2.p[1] = out_tri1.p[2];
 			out_tri2.t[1] = out_tri1.t[2];
-
 			out_tri2.p[2] = Vector_IntersectPlane(plane_p, plane_n, *inside_points[1], *outside_points[0], t);
 			out_tri2.t[2].u = t * (outside_tex[0]->u - inside_tex[1]->u) + inside_tex[1]->u;
 			out_tri2.t[2].v = t * (outside_tex[0]->v - inside_tex[1]->v) + inside_tex[1]->v;
-
+			out_tri2.t[2].w = t * (outside_tex[0]->w - inside_tex[1]->w) + inside_tex[1]->w;
 			return 2; // Return two newly formed triangles which form a quad
 		}
-
 	}
 
 
-	// Taken From Command Line Webcam Video
-	CHAR_INFO GetColour(float lum)
-	{
-		short bg_col, fg_col;
-		wchar_t sym;
-		int pixel_bw = (int)(13.0f * lum);
-		switch (pixel_bw)
-		{
-		case 0: bg_col = BG_BLACK; fg_col = FG_BLACK; sym = PIXEL_SOLID; break;
+	// Input parameter lum must be between 0 and 1 - i.e. [0, 1]
+	olc::Pixel GetColour(float lum) {
 
-		case 1: bg_col = BG_BLACK; fg_col = FG_DARK_GREY; sym = PIXEL_QUARTER; break;
-		case 2: bg_col = BG_BLACK; fg_col = FG_DARK_GREY; sym = PIXEL_HALF; break;
-		case 3: bg_col = BG_BLACK; fg_col = FG_DARK_GREY; sym = PIXEL_THREEQUARTERS; break;
-		case 4: bg_col = BG_BLACK; fg_col = FG_DARK_GREY; sym = PIXEL_SOLID; break;
-
-		case 5: bg_col = BG_DARK_GREY; fg_col = FG_GREY; sym = PIXEL_QUARTER; break;
-		case 6: bg_col = BG_DARK_GREY; fg_col = FG_GREY; sym = PIXEL_HALF; break;
-		case 7: bg_col = BG_DARK_GREY; fg_col = FG_GREY; sym = PIXEL_THREEQUARTERS; break;
-		case 8: bg_col = BG_DARK_GREY; fg_col = FG_GREY; sym = PIXEL_SOLID; break;
-
-		case 9:  bg_col = BG_GREY; fg_col = FG_WHITE; sym = PIXEL_QUARTER; break;
-		case 10: bg_col = BG_GREY; fg_col = FG_WHITE; sym = PIXEL_HALF; break;
-		case 11: bg_col = BG_GREY; fg_col = FG_WHITE; sym = PIXEL_THREEQUARTERS; break;
-		case 12: bg_col = BG_GREY; fg_col = FG_WHITE; sym = PIXEL_SOLID; break;
-		default:
-			bg_col = BG_BLACK; fg_col = FG_BLACK; sym = PIXEL_SOLID;
-		}
-
-		CHAR_INFO c;
-		c.Attributes = bg_col | fg_col;
-		c.Char.UnicodeChar = sym;
-		return c;
+		int nValue = (int)(std::max(lum, 0.20f) * 255.0f);
+		return olc::Pixel(nValue, nValue, nValue);
 	}
 
-
+	float* pDepthBuffer = nullptr;
 
 public:
 	bool OnUserCreate() override
 	{
+		pDepthBuffer = new float[ScreenWidth() * ScreenHeight()];
 		
-		//meshCube.LoadFromObjectFile("mountains.obj");
-		meshCube.LoadFromObjectFile("ArtisansHub.obj");
-		sprTex1 = new olcSprite(L"spritesheet.spr");
+		//meshCube.LoadFromObjectFile("mountains2.obj", true);
+		//meshCube.LoadFromObjectFile("./assets/spyro.obj", true);
+		meshCube.LoadFromObjectFile("./assets/spyro2.obj", true);
+
+
+		//sprTex1 = new olc::Sprite("./assets/High.png");
+		sprTex1 = new olc::Sprite("./assets/terrain2.png");
+
+
+		//meshCube.tris = {
+
+		//	// SOUTH
+		//	{ 0.0f, 0.0f, 0.0f, 1.0f,    0.0f, 1.0f, 0.0f, 1.0f,    1.0f, 1.0f, 0.0f, 1.0f,		0.0f, 1.0f, 1.0f,		0.0f, 0.0f, 1.0f,		1.0f, 0.0f, 1.0f,},
+		//	{ 0.0f, 0.0f, 0.0f, 1.0f,    1.0f, 1.0f, 0.0f, 1.0f,    1.0f, 0.0f, 0.0f, 1.0f,		0.0f, 1.0f, 1.0f,		1.0f, 0.0f, 1.0f,		1.0f, 1.0f, 1.0f,},
+
+		//	// EAST           																			   
+		//	{ 1.0f, 0.0f, 0.0f, 1.0f,    1.0f, 1.0f, 0.0f, 1.0f,    1.0f, 1.0f, 1.0f, 1.0f,		0.0f, 1.0f, 1.0f,		0.0f, 0.0f, 1.0f,		1.0f, 0.0f, 1.0f,},
+		//	{ 1.0f, 0.0f, 0.0f, 1.0f,    1.0f, 1.0f, 1.0f, 1.0f,    1.0f, 0.0f, 1.0f, 1.0f,		0.0f, 1.0f, 1.0f,		1.0f, 0.0f, 1.0f,		1.0f, 1.0f, 1.0f,},
+
+		//	// NORTH           																			   
+		//	{ 1.0f, 0.0f, 1.0f, 1.0f,    1.0f, 1.0f, 1.0f, 1.0f,    0.0f, 1.0f, 1.0f, 1.0f,		0.0f, 1.0f, 1.0f,		0.0f, 0.0f, 1.0f,		1.0f, 0.0f, 1.0f,},
+		//	{ 1.0f, 0.0f, 1.0f, 1.0f,    0.0f, 1.0f, 1.0f, 1.0f,    0.0f, 0.0f, 1.0f, 1.0f,		0.0f, 1.0f, 1.0f,		1.0f, 0.0f, 1.0f,		1.0f, 1.0f, 1.0f,},
+
+		//	// WEST            																			   
+		//	{ 0.0f, 0.0f, 1.0f, 1.0f,    0.0f, 1.0f, 1.0f, 1.0f,    0.0f, 1.0f, 0.0f, 1.0f,		0.0f, 1.0f, 1.0f,		0.0f, 0.0f, 1.0f,		1.0f, 0.0f, 1.0f,},
+		//	{ 0.0f, 0.0f, 1.0f, 1.0f,    0.0f, 1.0f, 0.0f, 1.0f,    0.0f, 0.0f, 0.0f, 1.0f,		0.0f, 1.0f, 1.0f,		1.0f, 0.0f, 1.0f,		1.0f, 1.0f, 1.0f,},
+
+		//	// TOP             																			   
+		//	{ 0.0f, 1.0f, 0.0f, 1.0f,    0.0f, 1.0f, 1.0f, 1.0f,    1.0f, 1.0f, 1.0f, 1.0f,		0.0f, 1.0f, 1.0f,		0.0f, 0.0f, 1.0f,		1.0f, 0.0f, 1.0f,},
+		//	{ 0.0f, 1.0f, 0.0f, 1.0f,    1.0f, 1.0f, 1.0f, 1.0f,    1.0f, 1.0f, 0.0f, 1.0f,		0.0f, 1.0f, 1.0f,		1.0f, 0.0f, 1.0f,		1.0f, 1.0f, 1.0f,},
+
+		//	// BOTTOM          																			  
+		//	{ 1.0f, 0.0f, 1.0f, 1.0f,    0.0f, 0.0f, 1.0f, 1.0f,    0.0f, 0.0f, 0.0f, 1.0f,		0.0f, 1.0f, 1.0f,		0.0f, 0.0f, 1.0f,		1.0f, 0.0f, 1.0f,},
+		//	{ 1.0f, 0.0f, 1.0f, 1.0f,    0.0f, 0.0f, 0.0f, 1.0f,    1.0f, 0.0f, 0.0f, 1.0f,		0.0f, 1.0f, 1.0f,		1.0f, 0.0f, 1.0f,		1.0f, 1.0f, 1.0f,},
+
+		//};
 
 		matProj = Matrix_MakeProjection(90.0f, (float)ScreenHeight() / (float)ScreenWidth(), 0.1f, 1000.0f);
 
@@ -524,30 +538,30 @@ public:
 
 	bool OnUserUpdate(float fElapsedTime) override
 	{
-		if (GetKey(VK_UP).bHeld)
+		if (GetKey(olc::Key::UP).bHeld)
 			vCamera.y += 8.0f * fElapsedTime;
 
-		if (GetKey(VK_DOWN).bHeld)
+		if (GetKey(olc::Key::DOWN).bHeld)
 			vCamera.y -= 8.0f * fElapsedTime;
 
-		if (GetKey(VK_LEFT).bHeld)
+		if (GetKey(olc::Key::LEFT).bHeld)
 			vCamera.x -= 8.0f * fElapsedTime;
 
-		if (GetKey(VK_RIGHT).bHeld)
+		if (GetKey(olc::Key::RIGHT).bHeld)
 			vCamera.x += 8.0f * fElapsedTime;
 
 		vec3d vForward = Vector_Mul(vLookDir, 8.0f * fElapsedTime);
 
-		if (GetKey(L'W').bHeld)
+		if (GetKey(olc::Key::W).bHeld)
 			vCamera = Vector_Add(vCamera, vForward);
 
-		if (GetKey(L'S').bHeld)
+		if (GetKey(olc::Key::S).bHeld)
 			vCamera = Vector_Sub(vCamera, vForward);
 
-		if (GetKey(L'A').bHeld)
+		if (GetKey(olc::Key::A).bHeld)
 			fYaw -= 2.0f * fElapsedTime;
 
-		if (GetKey(L'D').bHeld)
+		if (GetKey(olc::Key::D).bHeld)
 			fYaw += 2.0f * fElapsedTime;
 
 
@@ -610,14 +624,11 @@ public:
 
 				float dp = max(0.1f, Vector_DotProduct(light_direction, normal));
 				
-				CHAR_INFO c = GetColour(dp);
-				triTransformed.col = c.Attributes;
-				triTransformed.sym = c.Char.UnicodeChar;
+				triTransformed.col = GetColour(dp);
 
 				triViewed.p[0] = Matrix_MultiplyVector(matView, triTransformed.p[0]);
 				triViewed.p[1] = Matrix_MultiplyVector(matView, triTransformed.p[1]);
 				triViewed.p[2] = Matrix_MultiplyVector(matView, triTransformed.p[2]);
-				triViewed.sym = triTransformed.sym;
 				triViewed.col = triTransformed.col;
 				triViewed.t[0] = triTransformed.t[0];
 				triViewed.t[1] = triTransformed.t[1];
@@ -634,7 +645,6 @@ public:
 					triProjected.p[1] = Matrix_MultiplyVector(matProj, clipped[n].p[1]);
 					triProjected.p[2] = Matrix_MultiplyVector(matProj, clipped[n].p[2]);
 					triProjected.col = clipped[n].col;
-					triProjected.sym = clipped[n].sym;
 					triProjected.t[0] = clipped[n].t[0];
 					triProjected.t[1] = clipped[n].t[1];
 					triProjected.t[2] = clipped[n].t[2];
@@ -691,9 +701,13 @@ public:
 			});
 
 		// Clear Screen
-		Fill(0, 0, ScreenWidth(), ScreenHeight(), PIXEL_SOLID, FG_BLACK);
+		FillRect(0, 0, ScreenWidth(), ScreenHeight(), olc::CYAN);
 
-		for (auto& triToRaster : vecTrianglesToRaster)
+		// Clear Depth Buffer
+		for (int i = 0; i < ScreenWidth() * ScreenHeight(); i++)
+			pDepthBuffer[i] = 0.0f;
+
+		for (auto &triToRaster : vecTrianglesToRaster)
 		{
 			// Clip triangles against all four screen edges, this could yield
 			// a bunch of triangles, so create a queue that we traverse to 
@@ -739,14 +753,14 @@ public:
 
 
 			// Draw the transformed, viewed, clipped, projected, sorted, clipped triangles
-			for (auto& t : listTriangles)
+			for (auto &t: listTriangles)
 			{
 				TexturedTriangle(t.p[0].x, t.p[0].y, t.t[0].u, t.t[0].v, t.t[0].w,
 					t.p[1].x, t.p[1].y, t.t[1].u, t.t[1].v, t.t[1].w,
 					t.p[2].x, t.p[2].y, t.t[2].u, t.t[2].v, t.t[2].w, sprTex1);
 
-				//FillTriangle(t.p[0].x, t.p[0].y, t.p[1].x, t.p[1].y, t.p[2].x, t.p[2].y, t.sym, t.col);
-				DrawTriangle(t.p[0].x, t.p[0].y, t.p[1].x, t.p[1].y, t.p[2].x, t.p[2].y, PIXEL_SOLID, FG_WHITE);
+				//FillTriangle(t.p[0].x, t.p[0].y, t.p[1].x, t.p[1].y, t.p[2].x, t.p[2].y, t.col);
+				//DrawTriangle(t.p[0].x, t.p[0].y, t.p[1].x, t.p[1].y, t.p[2].x, t.p[2].y, olc::WHITE);
 			}
 		}
 
@@ -756,7 +770,7 @@ public:
 	void TexturedTriangle(int x1, int y1, float u1, float v1, float w1,
 		int x2, int y2, float u2, float v2, float w2,
 		int x3, int y3, float u3, float v3, float w3,
-		olcSprite* tex)
+		olc::Sprite *tex)
 	{
 		if (y2 < y1)
 		{
@@ -813,7 +827,7 @@ public:
 
 		if (dy2) du2_step = du2 / (float)abs(dy2);
 		if (dy2) dv2_step = dv2 / (float)abs(dy2);
-		if (dy1) dw2_step = dw2 / (float)abs(dy1);
+		if (dy2) dw2_step = dw2 / (float)abs(dy2);
 
 		if (dy1)
 		{
@@ -850,7 +864,11 @@ public:
 					tex_u = (1.0f - t) * tex_su + t * tex_eu;
 					tex_v = (1.0f - t) * tex_sv + t * tex_ev;
 					tex_w = (1.0f - t) * tex_sw + t * tex_ew;
-					Draw(j, i, tex->SampleGlyph(tex_u / tex_w, tex_v / tex_w), tex->SampleColour(tex_u, tex_v));
+
+					if (tex_w > pDepthBuffer[i * ScreenWidth() + j]) {
+						Draw(j, i, tex->Sample(tex_u / tex_w, tex_v / tex_w));
+						pDepthBuffer[i * ScreenWidth() + j] = tex_w;
+					}
 
 					t += tstep;
 				}
@@ -864,64 +882,71 @@ public:
 		du1 = u3 - u2;
 		dw1 = w3 - w2;
 
-		if (dy1) dax_step - dx1 / (float)abs(dy1);
-		if (dy2) dbx_step - dx2 / (float)abs(dy2);
+		if (dy1) dax_step = dx1 / (float)abs(dy1);
+		if (dy2) dbx_step = dx2 / (float)abs(dy2);
 
-		du1_step = 0, dv1_step - 9;
+		du1_step = 0, dv1_step = 0;
 		if (dy1) du1_step = du1 / (float)abs(dy1);
 		if (dy1) dv1_step = dv1 / (float)abs(dy1);
 		if (dy1) dw1_step = dw1 / (float)abs(dy1);
 
-		for (int i = y2; i <= y3; i++)
+		if (dy1)
 		{
-			int ax = x2 + (float)(i - y2) * dax_step;
-			int bx = x1 + (float)(i - y1) * dbx_step;
-
-			float tex_su = u2 + (float)(i - y2) * du1_step;
-			float tex_sv = v2 + (float)(i - y2) * dv1_step;
-			float tex_sw = w2 + (float)(i - y2) * dw1_step;
-
-			float tex_eu = u1 + (float)(i - y2) * du2_step;
-			float tex_ev = v1 + (float)(i - y2) * dv2_step;
-			float tex_ew = w1 + (float)(i - y2) * dw2_step;
-
-			if (ax > bx)
+			for (int i = y2; i <= y3; i++)
 			{
-				swap(ax, bx);
-				swap(tex_su, tex_eu);
-				swap(tex_sv, tex_ev);
-				swap(tex_sw, tex_ew);
-			}
+				int ax = x2 + (float)(i - y2) * dax_step;
+				int bx = x1 + (float)(i - y1) * dbx_step;
 
-			tex_u = tex_su;
-			tex_v = tex_sv;
-			tex_w = tex_sw;
+				float tex_su = u2 + (float)(i - y2) * du1_step;
+				float tex_sv = v2 + (float)(i - y2) * dv1_step;
+				float tex_sw = w2 + (float)(i - y2) * dw1_step;
 
-			float tstep = 1.0f / ((float)(bx - ax));
-			float t = 0.0f;
+				float tex_eu = u1 + (float)(i - y1) * du2_step;
+				float tex_ev = v1 + (float)(i - y1) * dv2_step;
+				float tex_ew = w1 + (float)(i - y1) * dw2_step;
 
-			for (int j = ax; j < bx; j++)
-			{
-				tex_u = (1.0f - t) * tex_su + t * tex_eu;
-				tex_v = (1.0f - t) * tex_sv + t * tex_ev;
-				tex_w = (1.0f - t) * tex_sw + t * tex_ew;
+				if (ax > bx)
+				{
+					swap(ax, bx);
+					swap(tex_su, tex_eu);
+					swap(tex_sv, tex_ev);
+					swap(tex_sw, tex_ew);
+				}
 
-				Draw(j, i, tex->SampleGlyph(tex_u, tex_v), tex->SampleColour(tex_u, tex_v));
+				tex_u = tex_su;
+				tex_v = tex_sv;
+				tex_w = tex_sw;
 
-				t += tstep;
+				float tstep = 1.0f / ((float)(bx - ax));
+				float t = 0.0f;
+
+				for (int j = ax; j < bx; j++)
+				{
+					tex_u = (1.0f - t) * tex_su + t * tex_eu;
+					tex_v = (1.0f - t) * tex_sv + t * tex_ev;
+					tex_w = (1.0f - t) * tex_sw + t * tex_ew;
+
+					if (tex_w > pDepthBuffer[i * ScreenWidth() + j]) {
+						Draw(j, i, tex->Sample(tex_u / tex_w, tex_v / tex_w));
+						pDepthBuffer[i * ScreenWidth() + j] = tex_w;
+					}
+
+					t += tstep;
+				}
+
 			}
 
 		}
-
-
 	}
 
 };
 
-int main(){
+int main() {
+
 	// create screen
 	olcEngine3D demo;
-	if (demo.ConstructConsole(256, 240, 4, 4))
+
+	if (demo.Construct(256, 240, 4, 4))
 		demo.Start();
 
 	return 0;
