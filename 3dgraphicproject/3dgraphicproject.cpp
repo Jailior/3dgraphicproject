@@ -56,11 +56,18 @@ public:
 	{
 		pDepthBuffer = new float[ScreenWidth() * ScreenHeight()];
 		
+		
+		/*
+		* Load mountains2.obj with bHasTexure = false
+		* Load spyro.obj with High2.png
+		* Load spyro2.obj with terrain2.png
+		*/
+		
 		/*Loads obj file from assets*/
-		meshCube.LoadFromObjectFile("./assets/spyro2.obj", true);
+		meshCube.LoadFromObjectFile("./assets/spyro.obj", true);
 
 		/*Loads texture file from assets*/
-		sprTex1 = new olc::Sprite("./assets/terrain2.png");
+		sprTex1 = new olc::Sprite("./assets/High2.png");
 
 		matProj = linear::Matrix_MakeProjection(90.0f, (float)ScreenHeight() / (float)ScreenWidth(), 0.1f, 1000.0f);
 
@@ -479,7 +486,7 @@ int main() {
 
 	// Construct(width, height, pixel width, pixel height)
 	// Control Resolution
-	if (demo.Construct(256*4, 240*4, 1, 1))
+	if (demo.Construct(432*4, 243*4, 1, 1))
 		demo.Start();
 
 	return 0;
