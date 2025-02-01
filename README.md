@@ -6,7 +6,7 @@
 skill in C++ along the way. I hope to be able to use this project in the future to build 3D games.
 
 
-#### Final Update:
+#### Update #3:
 **High Res Spyro Demo:**
 
 [![High Res Spyro Demo Video](https://img.youtube.com/vi/m4otGfeNAJA/0.jpg)](https://www.youtube.com/watch?v=m4otGfeNAJA)
